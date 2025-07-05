@@ -370,6 +370,12 @@ fn should_start_server(
         && ((*cm0 && last_restart.elapsed().as_secs() > 60)
             || last_restart.elapsed().as_secs() > 3600)
     {
+        let terminal_session_count = crate::ipc::get_terminal_session_count().unwrap_or(0);
+        if terminal_session_count > 0 {
+            // There are terminal sessions, so we don't restart the server.
+            // We also need to keep `cm0` unchanged, so that we can reach this branch the next time.
+            return false;
+        }
         // restart server if new connections all closed, or every one hour,
         // as a workaround to resolve "SpotUdp" (dns resolve)
         // and x server get displays failure issue
@@ -1047,7 +1053,7 @@ mod desktop {
 
         fn get_display_xauth_xwayland(&mut self) {
             let tray = format!("{} +--tray", crate::get_app_name().to_lowercase());
-            for _ in 0..5 {
+            for _ in 1..=10 {
                 let display_proc = vec![
                     XWAYLAND,
                     IBUS_DAEMON,
@@ -1060,7 +1066,7 @@ mod desktop {
                     self.xauth = get_env("XAUTHORITY", &self.uid, proc);
                     self.wl_display = get_env("WAYLAND_DISPLAY", &self.uid, proc);
                     if !self.display.is_empty() && !self.xauth.is_empty() {
-                        break;
+                        return;
                     }
                 }
                 sleep_millis(300);
@@ -1068,7 +1074,7 @@ mod desktop {
         }
 
         fn get_display_x11(&mut self) {
-            for _ in 0..10 {
+            for _ in 1..=10 {
                 let display_proc = vec![
                     XWAYLAND,
                     IBUS_DAEMON,
@@ -1082,6 +1088,9 @@ mod desktop {
                     if !self.display.is_empty() {
                         break;
                     }
+                }
+                if !self.display.is_empty() {
+                    break;
                 }
                 sleep_millis(300);
             }
@@ -1152,7 +1161,7 @@ mod desktop {
         fn get_xauth_x11(&mut self) {
             // try by direct access to window manager process by name
             let tray = format!("{} +--tray", crate::get_app_name().to_lowercase());
-            for _ in 0..10 {
+            for _ in 1..=10 {
                 let display_proc = vec![
                     XWAYLAND,
                     IBUS_DAEMON,
@@ -1167,6 +1176,9 @@ mod desktop {
                     if !self.xauth.is_empty() {
                         break;
                     }
+                }
+                if !self.xauth.is_empty() {
+                    break;
                 }
                 sleep_millis(300);
             }
